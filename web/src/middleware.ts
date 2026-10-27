@@ -1,24 +1,30 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { authEnabled, SESSION_COOKIE, verifySession } from "@/lib/session";
 
 /**
- * Optional password gate for hosted demos.
- * Set DEMO_USER and DEMO_PASSWORD in the environment to require a login (HTTP Basic Auth).
- * Leave them unset for local development.
+ * Login gate. Active only when DEMO_USER and DEMO_PASSWORD are set (hosted demos);
+ * local development without them is open.
  */
-export function middleware(req: NextRequest) {
-  const user = process.env.DEMO_USER;
-  const pass = process.env.DEMO_PASSWORD;
-  if (!user || !pass) return NextResponse.next();
+export async function middleware(req: NextRequest) {
+  if (!authEnabled()) return NextResponse.next();
 
-  const header = req.headers.get("authorization") ?? "";
-  if (header.startsWith("Basic ")) {
-    const [u, p] = Buffer.from(header.slice(6), "base64").toString().split(":");
-    if (u === user && p === pass) return NextResponse.next();
+  const { pathname, search } = req.nextUrl;
+  const isLoginPage = pathname === "/login";
+  const isLoginApi = pathname === "/api/login";
+  const user = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+
+  if (isLoginApi) return NextResponse.next();
+  if (isLoginPage) {
+    return user ? NextResponse.redirect(new URL("/", req.url)) : NextResponse.next();
   }
-  return new NextResponse("Login required", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="RoofReady demo"' },
-  });
+  if (user) return NextResponse.next();
+
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Login required" }, { status: 401 });
+  }
+  const login = new URL("/login", req.url);
+  if (pathname !== "/") login.searchParams.set("next", pathname + search);
+  return NextResponse.redirect(login);
 }
 
 export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
