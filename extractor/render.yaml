@@ -1,0 +1,11 @@
+# Render.com blueprint for the extraction service (free tier).
+services:
+  - type: web
+    name: roofready-extractor
+    runtime: docker
+    rootDir: extractor
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: EXTRACTOR_API_KEY
+        sync: false   # set this in the Render dashboard

@@ -3,7 +3,7 @@ import { BUCKET, db } from "@/lib/db";
 import { extractPdf, ExtractorError } from "@/lib/extractor";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 const MAX_BYTES = 25 * 1024 * 1024;
 

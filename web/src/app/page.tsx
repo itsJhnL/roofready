@@ -4,7 +4,14 @@ import UploadForm from "./upload-form";
 
 export const dynamic = "force-dynamic";
 
+function warmUpExtractor() {
+  // Fire-and-forget: wakes a sleeping extractor so the first upload doesn't time out.
+  const base = process.env.EXTRACTOR_URL ?? "http://127.0.0.1:8000";
+  fetch(`${base}/health`, { signal: AbortSignal.timeout(55_000) }).catch(() => {});
+}
+
 export default async function Home() {
+  warmUpExtractor();
   const reports = await listReports();
   return (
     <>

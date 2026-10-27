@@ -178,7 +178,15 @@ npm run dev
 
 Open http://localhost:3000, drop both PDFs on the upload box, then open each report to review, approve and calculate.
 
+> Use the **service_role** key (Project Settings → API → service_role → Reveal), not the anon key. The anon key is blocked by row-level security and uploads fail with "new row violates row-level security policy".
+>
 > Use `127.0.0.1` (not `localhost`) for `EXTRACTOR_URL`. Node can resolve `localhost` to IPv6 while uvicorn listens on IPv4.
+
+### Hosting a demo (Vercel + Render)
+
+1. **Extractor on Render** (needs Docker for Tesseract/Poppler): New → Web Service → connect the repo, root directory `extractor`, runtime Docker, free plan. Add env var `EXTRACTOR_API_KEY` (any long random string). Note the service URL, e.g. `https://roofready-extractor.onrender.com`. Check `<url>/health` returns `{"ok":true}`.
+2. **Web app on Vercel**: New Project → import the repo, root directory `web`. Environment variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `EXTRACTOR_URL` (the Render URL, no trailing slash), `EXTRACTOR_API_KEY` (same string as Render), and `DEMO_USER` / `DEMO_PASSWORD` to require a login. Deploy.
+3. The free Render tier sleeps after 15 minutes idle; the first request after that takes 30–60 s. The home page pings the extractor on load to wake it, so open the site before uploading.
 
 ### Tests
 
