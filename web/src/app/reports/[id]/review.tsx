@@ -162,7 +162,7 @@ export default function Review({ report, measurements, extractorFlags, latestCal
                             value={k in edits ? edits[k] : m.value ?? ""}
                             onChange={(e) => setEdits({ ...edits, [k]: e.target.value })}
                           />{" "}
-                          <span className="small muted">{UNIT_LABEL[m.unit] ?? m.unit}</span>
+                          <span className="small muted unit">{UNIT_LABEL[m.unit] ?? m.unit}</span>
                         </td>
                         <td><span className={`badge ${m.confidence}`}>{CONFIDENCE_LABEL[m.confidence]}</span></td>
                         <td className="source">

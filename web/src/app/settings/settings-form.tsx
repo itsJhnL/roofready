@@ -48,7 +48,7 @@ export default function SettingsForm({ settings }: { settings: SettingRow[] }) {
                 <input type="number" step="any" min={0} aria-label={s.label}
                   className={Number(values[s.key]) !== Number(s.value) ? "changed" : ""}
                   value={values[s.key]} onChange={(e) => setValues({ ...values, [s.key]: e.target.value })} />{" "}
-                <span className="small muted">{s.unit}</span>
+                <span className="small muted unit" style={{ width: 56 }}>{s.unit}</span>
               </td>
               <td className="small">{s.description}</td>
             </tr>
