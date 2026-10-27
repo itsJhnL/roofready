@@ -36,7 +36,7 @@ export async function extractPdf(file: Blob, fileName: string): Promise<Extracti
 
   let res: Response;
   try {
-    res = await fetch(`${base}/extract`, { method: "POST", body: form, headers, signal: AbortSignal.timeout(120_000) });
+    res = await fetch(`${base}/extract`, { method: "POST", body: form, headers, signal: AbortSignal.timeout(280_000) });
   } catch (e) {
     throw new ExtractorError(`Extraction service is not reachable at ${base}. Is it running? (${(e as Error).message})`);
   }

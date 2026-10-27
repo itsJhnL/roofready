@@ -29,7 +29,12 @@ def ocr_image(image: Image.Image, psm: int = 4) -> str:
 
 
 def read_pdf(data: bytes) -> list[Page]:
+    """Text pages are read directly. Image-only pages are rendered; only the FIRST one is OCR'd
+    here (enough for provider detection and the summary). Later image pages carry their rendered
+    image with empty text, and the provider parser OCRs just the regions it needs. This keeps
+    OCR time low on small servers."""
     pages: list[Page] = []
+    ocr_done = False
     with pdfplumber.open(io.BytesIO(data)) as pdf:
         for i, p in enumerate(pdf.pages, start=1):
             text = p.extract_text() or ""
@@ -37,5 +42,9 @@ def read_pdf(data: bytes) -> list[Page]:
                 pages.append(Page(i, text, "text", p.extract_words()))
                 continue
             image = convert_from_bytes(data, dpi=OCR_DPI, first_page=i, last_page=i)[0]
-            pages.append(Page(i, ocr_image(image), "ocr", [], image))
+            if not ocr_done:
+                pages.append(Page(i, ocr_image(image), "ocr", [], image))
+                ocr_done = True
+            else:
+                pages.append(Page(i, "", "ocr", [], image))
     return pages

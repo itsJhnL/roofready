@@ -62,16 +62,21 @@ def matches(text: str) -> bool:
     return "roofscope" in t or "scope technologies" in t
 
 
-def _crop_plane_table(image: Image.Image) -> Image.Image:
-    """Find the 'Plane | Area(sf) | Pitch...' header and crop the table to the right of it."""
+def _fixed_crop(image: Image.Image) -> Image.Image:
+    """RoofScope's standard layout puts the plane table in the upper-right quarter of page 2."""
+    w, h = image.size
+    return image.crop((int(w * 0.75), int(h * 0.08), w, int(h * 0.72)))
+
+
+def _detected_crop(image: Image.Image) -> Image.Image | None:
+    """Slower fallback: find the 'Plane | Area(sf) | Pitch...' header with OCR and crop below it."""
     w, h = image.size
     data = pytesseract.image_to_data(image, config="--psm 11", output_type=pytesseract.Output.DICT)
     for i, word in enumerate(data["text"]):
         if word.strip().startswith("Plane") and data["left"][i] > w * 0.5:
             x, y = data["left"][i], data["top"][i]
             return image.crop((max(0, x - 20), max(0, y - 10), w, int(h * 0.75)))
-    # Fallback: the table occupies the upper-right quarter in RoofScope's standard layout.
-    return image.crop((int(w * 0.75), int(h * 0.08), w, int(h * 0.72)))
+    return None
 
 
 def _prepare(crop: Image.Image, scale: int, threshold: int | None) -> Image.Image:
@@ -80,6 +85,16 @@ def _prepare(crop: Image.Image, scale: int, threshold: int | None) -> Image.Imag
     if threshold is not None:
         img = img.point(lambda x: 255 if x > threshold else 0)
     return img
+
+
+def _plane_label(index: int) -> str:
+    """0 -> A, 25 -> Z, 26 -> AA, 27 -> AB ..."""
+    label = ""
+    index += 1
+    while index > 0:
+        index, rem = divmod(index - 1, 26)
+        label = chr(65 + rem) + label
+    return label
 
 
 def _read_plane_rows(table_text: str) -> tuple[list[dict], int]:
@@ -100,8 +115,11 @@ def _read_plane_rows(table_text: str) -> tuple[list[dict], int]:
         if not m:
             unreadable += 1
             continue
+        label = m.group(1).upper()
+        if not label.isalpha():  # OCR reads "I" as "|" or "l"; planes are lettered A, B, ... Z, AA, AB, ...
+            label = _plane_label(len(rows))
         rows.append({
-            "plane": m.group(1).upper(),
+            "plane": label,
             "area_sqft": to_num(m.group(2)),
             "pitch": float(m.group(3)),
             "high_roof": bool(m.group(4)),
@@ -113,21 +131,34 @@ def _read_plane_rows(table_text: str) -> tuple[list[dict], int]:
 def _parse_plane_page(page: Page, result: ExtractionResult) -> None:
     if page.image is None:
         return
-    crop = _crop_plane_table(page.image)
     total = result.measurements.get("total_area_sqft")
     total_sqft = total.value if total else None
 
+    def reconciles(rows, unreadable):
+        return (total_sqft is not None and rows and unreadable == 0
+                and abs(sum(r["area_sqft"] for r in rows) - total_sqft) <= max(5.0, total_sqft * 0.005))
+
+    # Fast path: fixed crop + best OCR variant. Fallbacks only run if the numbers don't add up.
     best = None  # (variant, text, rows, unreadable)
-    for name, scale, threshold in OCR_VARIANTS:
-        text = ocr_image(_prepare(crop, scale, threshold), psm=6)
-        rows, unreadable = _read_plane_rows(text)
-        reconciles = (total_sqft is not None and rows and unreadable == 0
-                      and abs(sum(r["area_sqft"] for r in rows) - total_sqft) <= max(5.0, total_sqft * 0.005))
-        if best is None or len(rows) > len(best[2]):
-            best = (name, text, rows, unreadable)
-        if reconciles:
-            best = (name, text, rows, unreadable)
+    crops = [("fixed", _fixed_crop(page.image))]
+    done = False
+    for crop_name, crop in crops:
+        for name, scale, threshold in OCR_VARIANTS:
+            text = ocr_image(_prepare(crop, scale, threshold), psm=6)
+            rows, unreadable = _read_plane_rows(text)
+            label = f"{crop_name}/{name}"
+            if best is None or len(rows) > len(best[2]):
+                best = (label, text, rows, unreadable)
+            if reconciles(rows, unreadable):
+                best = (label, text, rows, unreadable)
+                done = True
+                break
+        if done:
             break
+        if crop_name == "fixed":
+            detected = _detected_crop(page.image)
+            if detected is not None:
+                crops.append(("detected", detected))
     variant, table_text, rows, unreadable = best
     result.planes = rows
 

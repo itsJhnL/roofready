@@ -3,7 +3,7 @@ import { BUCKET, db } from "@/lib/db";
 import { extractPdf, ExtractorError } from "@/lib/extractor";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300; // Vercel: needs Fluid Compute (on by default for new projects); falls back to the plan limit otherwise
 
 const MAX_BYTES = 25 * 1024 * 1024;
 

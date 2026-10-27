@@ -28,10 +28,17 @@ export default function UploadForm() {
       let update: Item;
       try {
         const res = await fetch("/api/reports", { method: "POST", body: form });
-        const body = await res.json();
+        const text = await res.text();
+        let body: { id?: string; provider?: string; address?: string | null; error?: string } = {};
+        try { body = JSON.parse(text); } catch { /* not JSON: a platform error page */ }
+        const platformError = !body.error && !res.ok
+          ? (res.status === 504 || /timed? ?out/i.test(text)
+              ? "The server took too long to read this PDF. Please try again; the first upload after a quiet period can be slow."
+              : `Upload failed (${res.status}). Please try again.`)
+          : undefined;
         update = res.ok
           ? { name: file.name, state: "done", id: body.id, message: `${body.provider} · ${body.address ?? "address not found"}` }
-          : { name: file.name, state: "error", message: body.error ?? res.statusText };
+          : { name: file.name, state: "error", message: body.error ?? platformError ?? res.statusText };
       } catch (e) {
         update = { name: file.name, state: "error", message: (e as Error).message };
       }
